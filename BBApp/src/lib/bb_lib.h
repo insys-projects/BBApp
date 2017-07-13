@@ -17,6 +17,7 @@
 #include <QDebug>
 #include <QOpenGLFunctions>
 #include <QColor>
+#include <QMutex>
 
 #include "frequency.h"
 #include "amplitude.h"

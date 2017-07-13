@@ -480,7 +480,7 @@ int DeviceSA::SetTimebase(int newTimebase)
         return timebase_reference;
     }
 
-    saStatus status = saEnableExternalReference(id);
+    /*saStatus status = saEnableExternalReference(id);
     if(status == saExternalReferenceNotFound) {
         QMessageBox::warning(0, "Warning",
                              "No external reference on port.\n"
@@ -493,7 +493,7 @@ int DeviceSA::SetTimebase(int newTimebase)
                              "The current device does not support\n"
                              "an external reference.");
         return timebase_reference;
-    }
+    }*/
 
     timebase_reference = newTimebase;
     externalReference = true;
