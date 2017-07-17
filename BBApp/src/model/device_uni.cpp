@@ -1,16 +1,20 @@
-#include "device_sa.h"
+#include "device_uni.h"
 #include "mainwindow.h"
 
 #include <QElapsedTimer>
+#include <QLibrary>
+#include <QDir>
 
 #define STATUS_CHECK(status) \
     if(status < saNoError) { \
     return false; \
     }
 
-DeviceSA::DeviceSA(const Preferences *preferences) :
+DeviceUni::DeviceUni(const Preferences *preferences, QString sPluginName) :
     Device(preferences)
 {
+	TGetDeviceFunctions fnGetDeviceFunctions;
+
     id = -1;
     open = false;
     serial_number = 0;
@@ -19,14 +23,71 @@ DeviceSA::DeviceSA(const Preferences *preferences) :
 
     timebase_reference = TIMEBASE_INTERNAL;
     externalReference = false;
+
+	m_pDevUniFunc = 0;
+
+	if(sPluginName.isEmpty())
+		return;
+
+	fnGetDeviceFunctions = (TGetDeviceFunctions)QLibrary::resolve(sPluginName, "GetDeviceFunctions");
+
+	m_pDevUniFunc = fnGetDeviceFunctions();
 }
 
-DeviceSA::~DeviceSA()
+DeviceUni::~DeviceUni()
 {
     CloseDevice();
 }
 
-bool DeviceSA::OpenDevice()
+QList<DeviceConnectionInfo> DeviceUni::GetDeviceList()
+{
+	QList<DeviceConnectionInfo> deviceList;
+	DeviceConnectionInfo info;
+
+	QDir dir;
+	QStringList lsNameFilters;
+	QStringList	lsPlugins;
+	QString		sPlugin;
+
+	TGetDeviceFunctions fnGetDeviceFunctions;
+
+	int serialNumbers[8];
+	int deviceCount;
+
+	deviceList = Device::GetDeviceList();
+
+	lsNameFilters << "*.shmod";
+
+	lsPlugins = dir.entryList(lsNameFilters);
+
+	foreach(sPlugin, lsPlugins)
+	{
+		fnGetDeviceFunctions = (TGetDeviceFunctions)QLibrary::resolve(sPlugin, "GetDeviceFunctions");
+
+		if(fnGetDeviceFunctions == 0)
+			continue;
+
+		m_pDevUniFunc = fnGetDeviceFunctions();
+
+		if(m_pDevUniFunc == 0)
+			continue;
+
+		info.series = m_pDevUniFunc->GetSeries();
+
+		m_pDevUniFunc->GetSerialNumberList(serialNumbers, &deviceCount);
+
+		for(int i = 0; i < deviceCount; i++)
+		{
+			info.serialNumber = serialNumbers[i];
+			info.sPluginName = sPlugin;
+			deviceList.push_back(info);
+		}
+	}
+	
+	return deviceList;
+}
+
+bool DeviceUni::OpenDevice()
 {
     if(open) {
         return true;
@@ -63,26 +124,26 @@ bool DeviceSA::OpenDevice()
     return true;
 }
 
-bool DeviceSA::OpenDeviceWithSerial(int serialToOpen)
+bool DeviceUni::OpenDeviceWithSerial(int serialToOpen)
 {
     if(open) {
         return true;
     }
 
-    lastStatus = saOpenDeviceBySerialNumber(&id, serialToOpen);
+    lastStatus = (saStatus)m_pDevUniFunc->OpenDeviceBySerialNumber(&id, serialToOpen);
     if(lastStatus != saNoError) {
         return false;
     }
 
-    saGetSerialNumber(id, &serial_number);
+	m_pDevUniFunc->GetSerialNumber(id, &serial_number);
     serial_string.sprintf("%d", serial_number);
     // Get Firmware version
     char fs[16];
-    saGetFirmwareString(id, fs);
+    m_pDevUniFunc->GetFirmwareString(id, fs);
     firmware_string = fs;
     firmware_string += "  ";
 
-    saGetDeviceType(id, &deviceType);
+    m_pDevUniFunc->GetDeviceType(id, (int*)&deviceType);
 
     if(deviceType == saDeviceTypeSA44) {
         device_type = DeviceTypeSA44A;
@@ -92,7 +153,7 @@ bool DeviceSA::OpenDeviceWithSerial(int serialToOpen)
         device_type = DeviceTypeSA124;
     }
 
-    saQueryTemperature(id, &current_temp);
+    m_pDevUniFunc->QueryTemperature(id, &current_temp);
     QString diagnostics;
     diagnostics.sprintf("%.2f C", CurrentTemp());
     MainWindow::GetStatusBar()->SetDiagnostics(diagnostics);
@@ -101,24 +162,24 @@ bool DeviceSA::OpenDeviceWithSerial(int serialToOpen)
     return true;
 }
 
-int DeviceSA::GetNativeDeviceType() const
+int DeviceUni::GetNativeDeviceType() const
 {
     if(!open) {
         return (int)saDeviceTypeSA44B;
     }
 
     saDeviceType type;
-    saGetDeviceType(id, &type);
+    m_pDevUniFunc->GetDeviceType(id, (int*)&type);
     return (int)type;
 }
 
-bool DeviceSA::AttachTg()
+bool DeviceUni::AttachTg()
 {
     SHProgressDialog pd("Looking for Tracking Generator");
     pd.show();
 
     QEventLoop el;
-    std::thread t = std::thread(&DeviceSA::connectTgInThread, this, &el);
+    std::thread t = std::thread(&DeviceUni::connectTgInThread, this, &el);
     el.exec();
     if(t.joinable()) {
         t.join();
@@ -127,15 +188,16 @@ bool DeviceSA::AttachTg()
     return tgIsConnected;
 }
 
-bool DeviceSA::IsTgAttached()
+bool DeviceUni::IsTgAttached()
 {
 
     return false;
 }
 
-bool DeviceSA::CloseDevice()
+bool DeviceUni::CloseDevice()
 {
-    saCloseDevice(id);
+	if(m_pDevUniFunc)
+		m_pDevUniFunc->CloseDevice(id);
 
     id = -1;
     open = false;
@@ -145,26 +207,26 @@ bool DeviceSA::CloseDevice()
     return true;
 }
 
-bool DeviceSA::Abort()
+bool DeviceUni::Abort()
 {
-    saAbort(id);
+    m_pDevUniFunc->Abort(id);
     return true;
 }
 
-bool DeviceSA::Preset()
+bool DeviceUni::Preset()
 {
     if(!open) {
         //lastStatus = saDeviceNotOpenErr;
         return false;
     }
 
-    saAbort(id);
-    saPreset(id);
+    m_pDevUniFunc->Abort(id);
+    m_pDevUniFunc->Preset(id);
 
     return true;
 }
 
-bool DeviceSA::Reconfigure(const SweepSettings *s, Trace *t)
+bool DeviceUni::Reconfigure(const SweepSettings *s, Trace *t)
 {   
     Abort();
     tgCalState = tgCalStateUncalibrated;
@@ -172,8 +234,8 @@ bool DeviceSA::Reconfigure(const SweepSettings *s, Trace *t)
     // Update temperature between configurations
     QString diagnostics;
     if(deviceType != saDeviceTypeSA44) {
-        saQueryTemperature(id, &current_temp);
-        saQueryDiagnostics(id, &voltage);
+        m_pDevUniFunc->QueryTemperature(id, &current_temp);
+        m_pDevUniFunc->QueryDiagnostics(id, &voltage);
         diagnostics.sprintf("%.2f C  --  %.2f V", CurrentTemp(), Voltage());
     }
     MainWindow::GetStatusBar()->SetDiagnostics(diagnostics);
@@ -183,34 +245,34 @@ bool DeviceSA::Reconfigure(const SweepSettings *s, Trace *t)
     bool preamp = (s->Preamp() == 2);
     int scale = (s->RefLevel().IsLogScale() ? SA_LOG_SCALE : SA_LIN_SCALE);
 
-    saConfigCenterSpan(id, s->Center(), s->Span());
-    saConfigAcquisition(id, s->Detector(), scale);
+    m_pDevUniFunc->ConfigCenterSpan(id, s->Center(), s->Span());
+    m_pDevUniFunc->ConfigAcquisition(id, s->Detector(), scale);
 
     if(atten == SA_AUTO_ATTEN || gain == SA_AUTO_GAIN) {
-        saConfigLevel(id, s->RefLevel().ConvertToUnits(AmpUnits::DBM));
-        saConfigGainAtten(id, SA_AUTO_ATTEN, SA_AUTO_GAIN, true);
+        m_pDevUniFunc->ConfigLevel(id, s->RefLevel().ConvertToUnits(AmpUnits::DBM));
+        m_pDevUniFunc->ConfigGainAtten(id, SA_AUTO_ATTEN, SA_AUTO_GAIN, true);
     } else {
-        saConfigGainAtten(id, atten, gain, preamp);
+        m_pDevUniFunc->ConfigGainAtten(id, atten, gain, preamp);
     }
 
-    saConfigSweepCoupling(id, s->RBW(), s->VBW(), s->Rejection());
-    saConfigProcUnits(id, s->ProcessingUnits());
+    m_pDevUniFunc->ConfigSweepCoupling(id, s->RBW(), s->VBW(), s->Rejection());
+    m_pDevUniFunc->ConfigProcUnits(id, s->ProcessingUnits());
 
     int init_mode = SA_SWEEPING;
     if(s->Mode() == BB_REAL_TIME) {
-        saConfigRealTime(id, s->Div() * 10.0, prefs->realTimeFrameRate);
+        m_pDevUniFunc->ConfigRealTime(id, s->Div() * 10.0, prefs->realTimeFrameRate);
         init_mode = SA_REAL_TIME;
     }
     if(s->Mode() == MODE_NETWORK_ANALYZER) {
-        saConfigTgSweep(id, s->tgSweepSize, s->tgHighRangeSweep, s->tgPassiveDevice);
+        m_pDevUniFunc->ConfigTgSweep(id, s->tgSweepSize, s->tgHighRangeSweep, s->tgPassiveDevice);
         init_mode = SA_TG_SWEEP;
     }
 
-    saStatus initStatus = saInitiate(id, init_mode, 0);
+    saStatus initStatus = (saStatus)m_pDevUniFunc->Initiate(id, init_mode, 0);
 
     int traceLength = 0;
     double startFreq = 0.0, binSize = 0.0;
-    saQuerySweepInfo(id, &traceLength, &startFreq, &binSize);
+    m_pDevUniFunc->QuerySweepInfo(id, &traceLength, &startFreq, &binSize);
 
     t->SetSettings(*s);
     t->SetSize(traceLength);
@@ -219,7 +281,7 @@ bool DeviceSA::Reconfigure(const SweepSettings *s, Trace *t)
 
     if(s->Mode() == MODE_REAL_TIME) {
         int w = 0, h = 0;
-        saQueryRealTimeFrameInfo(id, &w, &h);
+        m_pDevUniFunc->QueryRealTimeFrameInfo(id, &w, &h);
         rtFrameSize.setWidth(w);
         rtFrameSize.setHeight(h);
     }
@@ -227,13 +289,13 @@ bool DeviceSA::Reconfigure(const SweepSettings *s, Trace *t)
     return true;
 }
 
-bool DeviceSA::GetSweep(const SweepSettings *s, Trace *t)
+bool DeviceUni::GetSweep(const SweepSettings *s, Trace *t)
 {
     saStatus status = saNoError;
 
     int startIx, stopIx;
 
-    status = saGetPartialSweep_32f(id, t->Min(), t->Max(), &startIx, &stopIx);
+    status = (saStatus)m_pDevUniFunc->GetPartialSweep_32f(id, t->Min(), t->Max(), &startIx, &stopIx);
 
     // Testing Full sweep, not for production
     //status = saGetSweep_32f(id, t->Min(), t->Max());
@@ -258,13 +320,13 @@ bool DeviceSA::GetSweep(const SweepSettings *s, Trace *t)
     return true;
 }
 
-bool DeviceSA::GetRealTimeFrame(Trace &t, RealTimeFrame &frame)
+bool DeviceUni::GetRealTimeFrame(Trace &t, RealTimeFrame &frame)
 {
     Q_ASSERT(frame.alphaFrame.size() == rtFrameSize.width() * rtFrameSize.height());
     Q_ASSERT(frame.rgbFrame.size() == frame.alphaFrame.size() * 4);
 
     // TODO check return value, emit error if not good
-    saStatus status = saGetRealTimeFrame(id, t.Max(), &frame.alphaFrame[0]);
+    saStatus status = (saStatus)m_pDevUniFunc->GetRealTimeFrame(id, t.Max(), &frame.alphaFrame[0]);
 
     if(status == saUSBCommErr) {
         emit connectionIssues();
@@ -296,33 +358,33 @@ bool DeviceSA::GetRealTimeFrame(Trace &t, RealTimeFrame &frame)
 }
 
 // I/Q streaming setup
-bool DeviceSA::Reconfigure(const DemodSettings *s, IQDescriptor *iqc)
+bool DeviceUni::Reconfigure(const DemodSettings *s, IQDescriptor *iqc)
 {
-    saAbort(id);
+    m_pDevUniFunc->Abort(id);
 
     int atten = (s->Atten() == 0) ? SA_AUTO_ATTEN : s->Atten() - 1;
     int gain = (s->Gain() == 0) ? SA_AUTO_GAIN : s->Gain() - 1;
-    saConfigCenterSpan(id, s->CenterFreq(), 250.0e3);
+    m_pDevUniFunc->ConfigCenterSpan(id, s->CenterFreq(), 250.0e3);
 
     if(s->Atten() == 0 || s->Gain() == 0 || s->Preamp() == 0) {
-        saConfigLevel(id, s->InputPower());
+        m_pDevUniFunc->ConfigLevel(id, s->InputPower());
     } else {
-        saConfigGainAtten(id, s->Atten(), s->Gain(), s->Preamp());
+        m_pDevUniFunc->ConfigGainAtten(id, s->Atten(), s->Gain(), s->Preamp());
     }
 
-    saConfigIQ(id, 0x1 << s->DecimationFactor(), s->Bandwidth());
-    saInitiate(id, SA_IQ, 0);
+    m_pDevUniFunc->ConfigIQ(id, 0x1 << s->DecimationFactor(), s->Bandwidth());
+    m_pDevUniFunc->Initiate(id, SA_IQ, 0);
 
-    saQueryStreamInfo(id, &iqc->returnLen, &iqc->bandwidth, &iqc->sampleRate);
+    m_pDevUniFunc->QueryStreamInfo(id, &iqc->returnLen, &iqc->bandwidth, &iqc->sampleRate);
     iqc->timeDelta = 1.0 / iqc->sampleRate;
     iqc->decimation = 1;
 
     return true;
 }
 
-bool DeviceSA::GetIQ(IQCapture *iqc)
+bool DeviceUni::GetIQ(IQCapture *iqc)
 {
-    saStatus status = saGetIQ_32f(id, (float*)(&iqc->capture[0]));
+    saStatus status = (saStatus)m_pDevUniFunc->GetIQ_32f(id, (float*)(&iqc->capture[0]));
 
     if(status == saUSBCommErr) {
         emit connectionIssues();
@@ -334,7 +396,7 @@ bool DeviceSA::GetIQ(IQCapture *iqc)
     return true;
 }
 
-bool DeviceSA::GetIQFlush(IQCapture *iqc, bool sync)
+bool DeviceUni::GetIQFlush(IQCapture *iqc, bool sync)
 {
     int rs;
     if(!sync) {
@@ -353,13 +415,13 @@ bool DeviceSA::GetIQFlush(IQCapture *iqc, bool sync)
     return true;
 }
 
-bool DeviceSA::ConfigureForTRFL(double center,
+bool DeviceUni::ConfigureForTRFL(double center,
                                 MeasRcvrRange range,
                                 int atten,
                                 int gain,
                                 IQDescriptor &desc)
 {
-    saAbort(id);
+    m_pDevUniFunc->Abort(id);
 
     double refLevel;
     switch(range) {
@@ -374,21 +436,21 @@ bool DeviceSA::ConfigureForTRFL(double center,
         break;
     }
 
-    saConfigCenterSpan(id, center, 100.0e3);
-    saConfigLevel(id, refLevel);
-    saConfigGainAtten(id, SA_AUTO_ATTEN, SA_AUTO_GAIN, false);
-    saConfigIQ(id, 2, 100.0e3);
-    saInitiate(id, SA_IQ, 0);
-    saQueryStreamInfo(id, &desc.returnLen, &desc.bandwidth, &desc.sampleRate);
+    m_pDevUniFunc->ConfigCenterSpan(id, center, 100.0e3);
+    m_pDevUniFunc->ConfigLevel(id, refLevel);
+    m_pDevUniFunc->ConfigGainAtten(id, SA_AUTO_ATTEN, SA_AUTO_GAIN, false);
+    m_pDevUniFunc->ConfigIQ(id, 2, 100.0e3);
+    m_pDevUniFunc->Initiate(id, SA_IQ, 0);
+    m_pDevUniFunc->QueryStreamInfo(id, &desc.returnLen, &desc.bandwidth, &desc.sampleRate);
     desc.timeDelta = 1.0 / desc.sampleRate;
     desc.decimation = 2;
 
     return true;
 }
 
-bool DeviceSA::ConfigureAudio(const AudioSettings &as)
+bool DeviceUni::ConfigureAudio(const AudioSettings &as)
 {
-    /*lastStatus = */saConfigAudio(
+    /*lastStatus = */m_pDevUniFunc->ConfigAudio(
                 id,
                 as.AudioMode(),
                 as.CenterFreq(),
@@ -397,14 +459,14 @@ bool DeviceSA::ConfigureAudio(const AudioSettings &as)
                 as.HighPassFreq(),
                 as.FMDeemphasis());
 
-    /*lastStatus = */saInitiate(id, SA_AUDIO, 0);
+    /*lastStatus = */m_pDevUniFunc->Initiate(id, SA_AUDIO, 0);
 
     return true;
 }
 
-bool DeviceSA::GetAudio(float *audio)
+bool DeviceUni::GetAudio(float *audio)
 {
-    saStatus status = saGetAudio(id, audio);
+    saStatus status = (saStatus)m_pDevUniFunc->GetAudio(id, audio);
 
     if(status == saUSBCommErr) {
         emit connectionIssues();
@@ -416,12 +478,12 @@ bool DeviceSA::GetAudio(float *audio)
     return true;
 }
 
-const char* DeviceSA::GetLastStatusString() const
+const char* DeviceUni::GetLastStatusString() const
 {
     return saGetErrorString(lastStatus);
 }
 
-QString DeviceSA::GetDeviceString() const
+QString DeviceUni::GetDeviceString() const
 {
     if(deviceType == saDeviceTypeSA44) return "SA44";
     if(deviceType == saDeviceTypeSA44B) return "SA44B";
@@ -431,24 +493,24 @@ QString DeviceSA::GetDeviceString() const
     return "No Device Open";
 }
 
-void DeviceSA::UpdateDiagnostics()
+void DeviceUni::UpdateDiagnostics()
 {
 
 }
 
-bool DeviceSA::IsPowered() const
+bool DeviceUni::IsPowered() const
 {
     return true;
 }
 
-bool DeviceSA::NeedsTempCal() const
+bool DeviceUni::NeedsTempCal() const
 {
     return false;
 }
 
-bool DeviceSA::SetTg(Frequency freq, double amp)
+bool DeviceUni::SetTg(Frequency freq, double amp)
 {
-    saStatus stat = saSetTg(id, freq, amp);
+    saStatus stat = (saStatus)m_pDevUniFunc->SetTg(id, freq, amp);
     if(stat != saNoError) {
         return false;
     }
@@ -456,18 +518,18 @@ bool DeviceSA::SetTg(Frequency freq, double amp)
     return true;
 }
 
-void DeviceSA::TgStoreThrough()
+void DeviceUni::TgStoreThrough()
 {
-    saStoreTgThru(id, TG_THRU_0DB);
+    m_pDevUniFunc->StoreTgThru(id, TG_THRU_0DB);
     tgCalState = tgCalStatePending;
 }
 
-void DeviceSA::TgStoreThroughPad()
+void DeviceUni::TgStoreThroughPad()
 {
-    saStoreTgThru(id, TG_THRU_20DB);
+    m_pDevUniFunc->StoreTgThru(id, TG_THRU_20DB);
 }
 
-int DeviceSA::SetTimebase(int newTimebase)
+int DeviceUni::SetTimebase(int newTimebase)
 {
     if(!externalReference && newTimebase == TIMEBASE_INTERNAL) {
         return timebase_reference;
@@ -499,15 +561,15 @@ int DeviceSA::SetTimebase(int newTimebase)
     externalReference = true;
     return timebase_reference;
 }
-void DeviceSA::ConfigureIFOutput(double inputFreq,
+void DeviceUni::ConfigureIFOutput(double inputFreq,
                                  double outputFreq,
                                  int inputAtten,
                                  int outputGain)
 {
-    saConfigIFOutput(id, inputFreq, outputFreq, inputAtten, outputGain);
+    m_pDevUniFunc->ConfigIFOutput(id, inputFreq, outputFreq, inputAtten, outputGain);
 }
 
-QString DeviceSA::GetSeries()
+QString DeviceUni::GetSeries()
 {
-	return SA_SERIES;
+	return m_pDevUniFunc->GetSeries();
 }

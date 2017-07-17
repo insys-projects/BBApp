@@ -44,6 +44,8 @@ public:
         return timebase_reference;
     }
 
+	virtual QString GetSeries();
+
 private:
     // Controls whether or not we need to reinitialize the device when
     //   setting a new audio configuration

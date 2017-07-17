@@ -181,6 +181,9 @@
     <ClCompile Include="src\views\trace_view.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\model\device_uni.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="src\widgets\audio_dialog.h">
@@ -676,5 +679,13 @@
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="bb_app.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\model\device_uni.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\model\device_uni_functions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

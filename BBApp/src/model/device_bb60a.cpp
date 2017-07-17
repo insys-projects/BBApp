@@ -516,3 +516,8 @@ bool DeviceBB60A::IsPowered() const
 
     return true;
 }
+
+QString DeviceBB60A::GetSeries()
+{
+	return BB_SERIES;
+}

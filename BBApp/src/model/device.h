@@ -20,6 +20,9 @@ const int TIMEBASE_EXT_DC = 2;
 
 class Preferences;
 
+#define SA_SERIES "SA44/124"
+#define BB_SERIES "BB60C"
+
 enum DeviceSeries {
     saSeries,
     bbSeries
@@ -34,7 +37,9 @@ enum TgCalState {
 
 struct DeviceConnectionInfo {
     int serialNumber;
-    DeviceSeries series;
+    //DeviceSeries series;
+	QString series;
+	QString sPluginName;
 };
 
 // Do not change these values
@@ -63,7 +68,7 @@ public:
     }
     virtual ~Device() = 0;
 
-    QList<DeviceConnectionInfo> GetDeviceList() const;
+    virtual QList<DeviceConnectionInfo> GetDeviceList();
 
     virtual bool OpenDevice() = 0;
     virtual bool OpenDeviceWithSerial(int serialToOpen) = 0;
@@ -125,6 +130,8 @@ public:
     virtual bool NeedsTempCal() const = 0;
     TgCalState GetTgCalState() const { return tgCalState; }
     QSize RealTimeFrameSize() const { return rtFrameSize; }
+
+	virtual QString GetSeries() = 0;
 
 protected:
     bool open;

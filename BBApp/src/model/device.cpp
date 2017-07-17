@@ -5,7 +5,7 @@
 #include "lib/bb_api.h"
 #include "lib/sa_api.h"
 
-QList<DeviceConnectionInfo> Device::GetDeviceList() const
+QList<DeviceConnectionInfo> Device::GetDeviceList()
 {
     QList<DeviceConnectionInfo> deviceList;
     DeviceConnectionInfo info;
@@ -13,14 +13,14 @@ QList<DeviceConnectionInfo> Device::GetDeviceList() const
     int serialNumbers[8];
     int deviceCount;
 
-    info.series = saSeries;
+    info.series = SA_SERIES;
     saGetSerialNumberList(serialNumbers, &deviceCount);
     for(int i = 0; i < deviceCount; i++) {
         info.serialNumber = serialNumbers[i];
         deviceList.push_back(info);
     }
 
-    info.series = bbSeries;
+    info.series = BB_SERIES;
     bbGetSerialNumberList(serialNumbers, &deviceCount);
     for(int i = 0; i < deviceCount; i++) {
         info.serialNumber = serialNumbers[i];

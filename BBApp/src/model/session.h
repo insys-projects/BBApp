@@ -4,6 +4,8 @@
 #include "device_bb60a.h"
 #include "device_sa.h"
 
+#include "device_uni.h"
+
 #include "sweep_settings.h"
 #include "demod_settings.h"
 #include "trace_manager.h"

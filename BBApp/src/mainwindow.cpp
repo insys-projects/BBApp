@@ -511,21 +511,27 @@ void MainWindow::aboutToShowUtilitiesMenu()
 void MainWindow::OpenDevice(QMap<QString, QVariant> devInfoMap)
 {
     QString openLabel;
-    if(devInfoMap["Series"].toInt() == saSeries) {
+    if(devInfoMap["Series"] == SA_SERIES) {
         openLabel = "Connecting Device\nEstimated 6 seconds\n";
-    } else {
+    } 
+	else  if(devInfoMap["Series"] == BB_SERIES) {
         openLabel = "Connecting Device\nEstimated 3 seconds";
     }
+	else
+		openLabel = "Connecting Device\n";
 
     SHProgressDialog pd(openLabel, this);
     pd.show();
 
     Device *device;
-    if(devInfoMap["Series"].toInt() == saSeries) {
-        device = new DeviceSA(&session->prefs);
-    } else {
-        device = new DeviceBB60A(&session->prefs);
-    }
+	if(!devInfoMap["PluginName"].toString().isEmpty())
+		device = new DeviceUni(&session->prefs, devInfoMap["PluginName"].toString());
+	else if(devInfoMap["Series"] == SA_SERIES) {
+		device = new DeviceSA(&session->prefs);
+	}
+	else if(devInfoMap["Series"] == BB_SERIES) {
+		device = new DeviceBB60A(&session->prefs);
+	}
 
     // Replace the old device with the new one
     Device *tempDevice = session->device;
@@ -572,14 +578,14 @@ void MainWindow::Preset()
     QMap<QString, QVariant> devInfoMap;
     DeviceType devType = session->device->GetDeviceType();
     if(devType == DeviceTypeBB60A || devType == DeviceTypeBB60C) {
-        devInfoMap["Series"] = bbSeries;
+        devInfoMap["Series"] = BB_SERIES;
         if(devType == DeviceTypeBB60A) {
             devInfoMap["SerialNumber"] = 0;
         } else {
             devInfoMap["SerialNumber"] = session->device->SerialNumber();
         }
     } else {
-        devInfoMap["Series"] = saSeries;
+        devInfoMap["Series"] = session->device->GetSeries();
         devInfoMap["SerialNumber"] = session->device->SerialNumber();
     }
 
@@ -618,7 +624,7 @@ void MainWindow::PresetDeviceInThread(QEventLoop *el)
 void MainWindow::connectDeviceUponOpen()
 {
     // Look for no devices or more than one device
-    auto list = session->device->GetDeviceList();
+	QList<DeviceConnectionInfo> list = session->device->GetDeviceList();
     if(list.size() == 0) {
         QMessageBox::warning(this, "Signal Hound", "No Device Found.");
         return;
@@ -632,12 +638,9 @@ void MainWindow::connectDeviceUponOpen()
     DeviceConnectionInfo item = list.at(0);
     QMap<QString, QVariant> devInfo;
 
-    if(item.series == saSeries) {
-        devInfo["Series"] = saSeries;
-    } else {
-        devInfo["Series"] = bbSeries;
-    }
+    devInfo["Series"] = item.series;
     devInfo["SerialNumber"] = item.serialNumber;
+	devInfo["PluginName"] = item.sPluginName;
 
     OpenDevice(devInfo);
 }
@@ -652,7 +655,10 @@ void MainWindow::connectDevice(QAction *a)
 void MainWindow::populateConnectMenu()
 {
     connect_menu->clear();
-    auto list = session->device->GetDeviceList();
+	DeviceUni *pDeviceUni = new DeviceUni(&session->prefs);
+	QList<DeviceConnectionInfo> list = pDeviceUni->GetDeviceList();
+
+	delete pDeviceUni;
 
     if(list.empty()) {
         QAction *a = connect_menu->addAction("No Devices Found");
@@ -660,26 +666,22 @@ void MainWindow::populateConnectMenu()
         return;
     }
 
-    for(auto &item : list) {
+    for(DeviceConnectionInfo item : list) {
         QString label;
         QMap<QString, QVariant> infoMap;
 
-        if(item.series == saSeries) {
-            label += "SA44/124:  ";
-            infoMap["Series"] = saSeries;
-        } else {
-            label += "BB60C:  ";
-            infoMap["Series"] = bbSeries;
-        }
+        label += item.series + ":  ";
+        infoMap["Series"] = item.series;
+        
+        label += QVariant(item.serialNumber).toString();
+		
+		if(!item.sPluginName.isEmpty())
+			label += " (plugin)";
 
-        if(item.serialNumber == 0) {
-            label = "BB60A";
-            infoMap["SerialNumber"] = 0;
-        } else {
-            label += QVariant(item.serialNumber).toString();
-            infoMap["SerialNumber"] = item.serialNumber;
-        }
+        infoMap["SerialNumber"] = item.serialNumber;
 
+		infoMap["PluginName"] = item.sPluginName;
+        
         QAction *a = connect_menu->addAction(label);
         a->setData(infoMap);
     }

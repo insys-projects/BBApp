@@ -1,17 +1,23 @@
-#ifndef DEVICE_SA_H
-#define DEVICE_SA_H
+#ifndef DEVICE_UNI_H
+#define DEVICE_UNI_H
 
 #include <QEventLoop>
 
 #include "device.h"
 #include "lib/sa_api.h"
 
+#include "device_uni_functions.h"
+
 class Preferences;
 
-class DeviceSA : public Device {
+typedef DeviceUniFunctions*(*TGetDeviceFunctions)(void);
+
+class DeviceUni : public Device {
 public:
-    DeviceSA(const Preferences *preferences);
-    virtual ~DeviceSA();
+    DeviceUni(const Preferences *preferences, QString sPluginName = "");
+    virtual ~DeviceUni();
+
+	virtual QList<DeviceConnectionInfo> GetDeviceList();
 
     virtual bool OpenDevice();
     virtual bool OpenDeviceWithSerial(int serialToOpen);
@@ -83,8 +89,10 @@ private:
     // Once external reference is chosen, unable to return to internal
     bool externalReference;
 
+	DeviceUniFunctions *m_pDevUniFunc;
+
 private:
-    DISALLOW_COPY_AND_ASSIGN(DeviceSA)
+    DISALLOW_COPY_AND_ASSIGN(DeviceUni)
 };
 
-#endif // DEVICE_SA_H
+#endif // DEVICE_UNI_H
