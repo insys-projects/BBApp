@@ -43,7 +43,7 @@ private:
     void RenamePreset(int p);
 
     void OpenDevice(QMap<QString, QVariant> devInfoMap);
-    void OpenDeviceInThread(QEventLoop *el, Device *device, int serialToOpen);
+    void OpenDeviceInThread(QEventLoop *el, Device *device, int serialToOpen, QString sName);
     void Preset();
     void PresetDeviceInThread(QEventLoop *el);
 

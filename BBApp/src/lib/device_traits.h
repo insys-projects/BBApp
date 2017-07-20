@@ -6,6 +6,7 @@
 class SweepSettings;
 
 enum DeviceType {
+	DeviceTypeNone = -1,
     DeviceTypeSA44A = 0,
     DeviceTypeSA44B,
     DeviceTypeSA124,

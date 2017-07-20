@@ -8,7 +8,9 @@ public:
 	virtual ~DeviceUniFunctions(){}
 
 	virtual int GetSerialNumberList(int serialNumbers[8], int *deviceCount) = 0;
+	virtual int GetNameList(char **ppNames, int *deviceCount) = 0;
 	virtual int OpenDeviceBySerialNumber(int *device, int serialNumber) = 0;
+	virtual int OpenDeviceByName(int *device, char *pName) = 0;
 	virtual int OpenDevice(int *device) = 0;
 	virtual int CloseDevice(int device) = 0;
 	virtual int Preset(int device) = 0;

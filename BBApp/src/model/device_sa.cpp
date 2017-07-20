@@ -101,6 +101,11 @@ bool DeviceSA::OpenDeviceWithSerial(int serialToOpen)
     return true;
 }
 
+bool DeviceSA::OpenDeviceWithName(const QString &sName)
+{
+	return false;
+}
+
 int DeviceSA::GetNativeDeviceType() const
 {
     if(!open) {

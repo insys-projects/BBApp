@@ -543,7 +543,7 @@ void MainWindow::OpenDevice(QMap<QString, QVariant> devInfoMap)
                                 this,
                                 &el,
                                 device,
-                                devInfoMap["SerialNumber"].toInt());
+                                devInfoMap["SerialNumber"].toInt(), devInfoMap["Name"].toString());
     el.exec();
     if(t.joinable()) {
         t.join();
@@ -554,9 +554,12 @@ void MainWindow::OpenDevice(QMap<QString, QVariant> devInfoMap)
     return;
 }
 
-void MainWindow::OpenDeviceInThread(QEventLoop *el, Device *device, int serialToOpen)
+void MainWindow::OpenDeviceInThread(QEventLoop *el, Device *device, int serialToOpen, QString sName)
 {
     device->OpenDeviceWithSerial(serialToOpen);
+
+	if(!device->IsOpen() && !sName.isEmpty())
+		device->OpenDeviceWithName(sName);
 
     while(!el->isRunning()) {
         Sleep(1);
@@ -673,14 +676,17 @@ void MainWindow::populateConnectMenu()
         label += item.series + ":  ";
         infoMap["Series"] = item.series;
         
-        label += QVariant(item.serialNumber).toString();
+		if(item.sName.isEmpty())
+			label += QVariant(item.serialNumber).toString();
+		else
+			label += item.sName;
 		
 		if(!item.sPluginName.isEmpty())
 			label += " (plugin)";
 
         infoMap["SerialNumber"] = item.serialNumber;
-
 		infoMap["PluginName"] = item.sPluginName;
+		infoMap["Name"] = item.sName;
         
         QAction *a = connect_menu->addAction(label);
         a->setData(infoMap);
@@ -735,7 +741,10 @@ void MainWindow::deviceConnected(bool success)
         status_bar->UpdateDeviceInfo(device_string);
 
         device_traits::set_device_type(session->device->GetDeviceType());
-        session->LoadDefaults();
+
+		if(session->device->GetDeviceType() != DeviceTypeNone)
+			session->LoadDefaults();
+
         connect(session->device, SIGNAL(connectionIssues()),
                 this, SLOT(forceDisconnectDevice()));
 

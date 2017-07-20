@@ -16,9 +16,19 @@ int DeviceSAFunctions::GetSerialNumberList(int serialNumbers[8], int *deviceCoun
 	return saGetSerialNumberList(serialNumbers, deviceCount);
 }
 
+int DeviceSAFunctions::GetNameList(char **ppNames, int *deviceCount)
+{
+	return -1;
+}
+
 int DeviceSAFunctions::OpenDeviceBySerialNumber(int *device, int serialNumber)
 {
 	return saOpenDeviceBySerialNumber(device, serialNumber);
+}
+
+int DeviceSAFunctions::OpenDeviceByName(int *device, char *pName)
+{
+	return -1;
 }
 
 int DeviceSAFunctions::OpenDevice(int *device)

@@ -10,7 +10,9 @@ public:
 	virtual ~DeviceSAFunctions();
 
 	virtual int GetSerialNumberList(int serialNumbers[8], int *deviceCount);
+	virtual int GetNameList(char **pNames, int *deviceCount);
 	virtual int OpenDeviceBySerialNumber(int *device, int serialNumber);
+	virtual int OpenDeviceByName(int *device, char *pName);
 	virtual int OpenDevice(int *device);
 	virtual int CloseDevice(int device);
 	virtual int Preset(int device);

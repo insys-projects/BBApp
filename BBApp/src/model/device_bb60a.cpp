@@ -81,6 +81,11 @@ bool DeviceBB60A::OpenDeviceWithSerial(int serialToOpen)
     return true;
 }
 
+bool DeviceBB60A::OpenDeviceWithName(const QString &sName)
+{
+	return false;
+}
+
 int DeviceBB60A::GetNativeDeviceType() const
 {
     if(!open) {

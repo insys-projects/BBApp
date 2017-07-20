@@ -21,6 +21,7 @@ public:
 
     virtual bool OpenDevice();
     virtual bool OpenDeviceWithSerial(int serialToOpen);
+	virtual bool OpenDeviceWithName(const QString &sName);
     virtual int GetNativeDeviceType() const;
     virtual bool CloseDevice();
     virtual bool Abort();

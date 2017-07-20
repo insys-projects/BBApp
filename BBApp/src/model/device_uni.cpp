@@ -19,6 +19,7 @@ DeviceUni::DeviceUni(const Preferences *preferences, QString sPluginName) :
     open = false;
     serial_number = 0;
     deviceType = saDeviceTypeNone;
+	device_type = DeviceTypeNone;
     tgIsConnected = false;
 
     timebase_reference = TIMEBASE_INTERNAL;
@@ -52,7 +53,8 @@ QList<DeviceConnectionInfo> DeviceUni::GetDeviceList()
 	TGetDeviceFunctions fnGetDeviceFunctions;
 
 	int serialNumbers[8];
-	int deviceCount;
+	int deviceCount = 0;
+	char **ppName;
 
 	deviceList = Device::GetDeviceList();
 
@@ -74,13 +76,33 @@ QList<DeviceConnectionInfo> DeviceUni::GetDeviceList()
 
 		info.series = m_pDevUniFunc->GetSeries();
 
-		m_pDevUniFunc->GetSerialNumberList(serialNumbers, &deviceCount);
-
-		for(int i = 0; i < deviceCount; i++)
+		if(m_pDevUniFunc->GetSerialNumberList(serialNumbers, &deviceCount) == 0)
 		{
-			info.serialNumber = serialNumbers[i];
-			info.sPluginName = sPlugin;
-			deviceList.push_back(info);
+			for(int i = 0; i < deviceCount; i++)
+			{
+				info.serialNumber = serialNumbers[i];
+				info.sPluginName = sPlugin;
+				info.sName.clear();
+				deviceList.push_back(info);
+			}
+		}
+		else if(m_pDevUniFunc->GetNameList(0, &deviceCount) == 0)
+		{
+			ppName = new char*[deviceCount];
+
+			for(int i = 0; i < deviceCount; i++)
+				ppName[i] = new char[256];
+
+			if(m_pDevUniFunc->GetNameList(ppName, &deviceCount) != 0)
+				return deviceList;
+
+			for(int i = 0; i < deviceCount; i++)
+			{
+				info.serialNumber = 0;
+				info.sName = QString::fromLocal8Bit(ppName[i]);
+				info.sPluginName = sPlugin;
+				deviceList.push_back(info);
+			}
 		}
 	}
 	
@@ -160,6 +182,25 @@ bool DeviceUni::OpenDeviceWithSerial(int serialToOpen)
 
     open = true;
     return true;
+}
+
+bool DeviceUni::OpenDeviceWithName(const QString &sName)
+{
+	QByteArray arr;
+
+	if(open) {
+		return true;
+	}
+
+	arr = sName.toLocal8Bit();
+
+	lastStatus = (saStatus)m_pDevUniFunc->OpenDeviceByName(&id, (char*)arr.data());
+	if(lastStatus != saNoError) {
+		return false;
+	}
+
+	open = true;
+	return true;
 }
 
 int DeviceUni::GetNativeDeviceType() const
@@ -302,7 +343,7 @@ bool DeviceUni::GetSweep(const SweepSettings *s, Trace *t)
     //startIx = 0;
     //stopIx = t->Length();
 
-    if(status == saUSBCommErr) {
+    if((status == saUSBCommErr) || (status == -1)) {
         emit connectionIssues();
         return false;
     }

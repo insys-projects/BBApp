@@ -39,6 +39,7 @@ struct DeviceConnectionInfo {
     int serialNumber;
     //DeviceSeries series;
 	QString series;
+	QString sName;
 	QString sPluginName;
 };
 
@@ -72,6 +73,7 @@ public:
 
     virtual bool OpenDevice() = 0;
     virtual bool OpenDeviceWithSerial(int serialToOpen) = 0;
+	virtual bool OpenDeviceWithName(const QString &sName) = 0;
     virtual int GetNativeDeviceType() const = 0;
     virtual bool CloseDevice() = 0;
     virtual bool Abort() = 0;

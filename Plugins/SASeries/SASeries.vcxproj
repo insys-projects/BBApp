@@ -99,8 +99,7 @@
       <ModuleDefinitionFile>SASeries.def</ModuleDefinitionFile>
     </Link>
     <PostBuildEvent>
-      <Command>
-      </Command>
+      <Command>copy $(OutDir)$(TargetName).shmod ..\..\BBApp\$(TargetName).shmod</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -138,6 +137,9 @@
       <AdditionalDependencies>sa_api.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(TargetName).shmod</OutputFile>
     </Link>
+    <PostBuildEvent>
+      <Command>copy $(OutDir)$(TargetName).shmod ..\..\BBApp\$(TargetName).shmod</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
